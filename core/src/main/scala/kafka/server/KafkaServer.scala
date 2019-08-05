@@ -37,6 +37,7 @@ import kafka.security.CredentialProvider
 import kafka.security.auth.Authorizer
 import kafka.utils._
 import kafka.zk.{BrokerInfo, KafkaZkClient}
+
 import org.apache.kafka.clients.{ApiVersions, ClientDnsLookup, ManualMetadataUpdater, NetworkClient, NetworkClientUtils}
 import org.apache.kafka.common.internals.ClusterResourceListeners
 import org.apache.kafka.common.message.ControlledShutdownRequestData
@@ -142,6 +143,8 @@ class KafkaServer(val config: KafkaConfig, time: Time = Time.SYSTEM, threadNameP
   var kafkaController: KafkaController = null
 
   var kafkaScheduler: KafkaScheduler = null
+
+  var memoryReaderScheduler: ScheduledExecutorService = null
 
   var metadataCache: MetadataCache = null
   var quotaManagers: QuotaFactory.QuotaManagers = null
@@ -334,6 +337,11 @@ class KafkaServer(val config: KafkaConfig, time: Time = Time.SYSTEM, threadNameP
         startupComplete.set(true)
         isStartingUp.set(false)
         AppInfoParser.registerAppInfo(jmxPrefix, config.brokerId.toString, metrics, time.milliseconds())
+
+        // memory reader
+        memoryReaderScheduler = Executors.newSingleThreadScheduledExecutor
+        memoryReaderScheduler.schedule(new MemoryReader(), 60, TimeUnit.SECONDS)
+
         info("started")
       }
     }
@@ -644,6 +652,10 @@ class KafkaServer(val config: KafkaConfig, time: Time = Time.SYSTEM, threadNameP
         if (brokerTopicStats != null)
           CoreUtils.swallow(brokerTopicStats.close(), this)
 
+        // shutdown memory reader
+        if (memoryReaderScheduler != null)
+          CoreUtils.swallow(memoryReaderScheduler.shutdown(), this)
+
         // Clear all reconfigurable instances stored in DynamicBrokerConfig
         config.dynamicConfig.clear()
 
@@ -653,6 +665,7 @@ class KafkaServer(val config: KafkaConfig, time: Time = Time.SYSTEM, threadNameP
         isShuttingDown.set(false)
         CoreUtils.swallow(AppInfoParser.unregisterAppInfo(jmxPrefix, config.brokerId.toString, metrics), this)
         shutdownLatch.countDown()
+
         info("shut down completed")
       }
     }
