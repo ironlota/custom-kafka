@@ -2,10 +2,7 @@ package kafka.utils
 
 import java.nio.file.{Paths, Files}
 
-import com.sun.org.slf4j.internal.Logger
-import com.sun.org.slf4j.internal.LoggerFactory
-
-import kafka.Logging
+import kafka.utils.Logging
 
 class MemoryReader extends Runnable with Logging {
   private val MegaBytes = 1024 * 1024
@@ -19,7 +16,7 @@ class MemoryReader extends Runnable with Logging {
 
       if (Files.exists(Paths.get("/mnt/extra/holder.txt"))) {
 
-        val runtime = Runtime.getRuntimes
+        val runtime = Runtime.getRuntime
 
         val freeMemory = runtime.freeMemory / MegaBytes
         val totalMemory = runtime.totalMemory / MegaBytes
@@ -36,7 +33,7 @@ class MemoryReader extends Runnable with Logging {
     }
     catch  {
       case interrupt: InterruptedException => error("Error while sleeping")
-      case unknown => error("Got this unknown exception: " + unknown)
+      case unknown: Throwable => error("Got this unknown exception: " + unknown)
     }
   }
 }
